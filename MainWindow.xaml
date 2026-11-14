@@ -19,6 +19,17 @@
             </StatusBarItem>
         </StatusBar>
 
-        <Grid/>
+        <!-- Область предпросмотра с прокруткой; строки изменяются прямо в таблице -->
+        <DataGrid x:Name="Grid"
+                  ItemsSource="{Binding View}"
+                  AutoGenerateColumns="False"
+                  CanUserAddRows="False"
+                  CanUserDeleteRows="False"
+                  EnableRowVirtualization="True"
+                  SelectionMode="Extended"
+                  HeadersVisibility="Column"
+                  GridLinesVisibility="All"
+                  VerticalScrollBarVisibility="Auto"
+                  HorizontalScrollBarVisibility="Auto"/>
     </DockPanel>
 </Window>
