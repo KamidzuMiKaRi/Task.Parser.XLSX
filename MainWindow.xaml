@@ -9,6 +9,8 @@
         <ToolBarTray DockPanel.Dock="Top">
             <ToolBar>
                 <Button Content="Загрузить файл…" Command="{Binding LoadFileCommand}" Padding="8,3"/>
+                <Separator/>
+                <Button Content="Сбросить фильтры" Command="{Binding ClearFiltersCommand}" Padding="8,3"/>
             </ToolBar>
         </ToolBarTray>
 
@@ -19,17 +21,50 @@
             </StatusBarItem>
         </StatusBar>
 
-        <!-- Область предпросмотра с прокруткой; строки изменяются прямо в таблице -->
-        <DataGrid x:Name="Grid"
-                  ItemsSource="{Binding View}"
-                  AutoGenerateColumns="False"
-                  CanUserAddRows="False"
-                  CanUserDeleteRows="False"
-                  EnableRowVirtualization="True"
-                  SelectionMode="Extended"
-                  HeadersVisibility="Column"
-                  GridLinesVisibility="All"
-                  VerticalScrollBarVisibility="Auto"
-                  HorizontalScrollBarVisibility="Auto"/>
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <!-- Фильтрация строк по столбцам: для каждого столбца оператор и значение -->
+            <Border Grid.Row="0" BorderBrush="#DDDDDD" BorderThickness="0,0,0,1"
+                    Padding="6,6,6,2">
+                <ItemsControl ItemsSource="{Binding Filters}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,12,4">
+                                <TextBlock Text="{Binding Header}" FontWeight="SemiBold"
+                                           VerticalAlignment="Center" MinWidth="110"
+                                           TextTrimming="CharacterEllipsis"/>
+                                <ComboBox ItemsSource="{Binding Operators}"
+                                          SelectedItem="{Binding SelectedOperator, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                          Width="92" Margin="4,0" VerticalAlignment="Center"/>
+                                <TextBox Text="{Binding Query, UpdateSourceTrigger=PropertyChanged}"
+                                         Width="130" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </Border>
+
+            <!-- Область предпросмотра с прокруткой; строки изменяются прямо в таблице -->
+            <DataGrid x:Name="Grid" Grid.Row="1"
+                      ItemsSource="{Binding View}"
+                      AutoGenerateColumns="False"
+                      CanUserAddRows="False"
+                      CanUserDeleteRows="False"
+                      EnableRowVirtualization="True"
+                      SelectionMode="Extended"
+                      HeadersVisibility="Column"
+                      GridLinesVisibility="All"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Auto"/>
+        </Grid>
     </DockPanel>
 </Window>

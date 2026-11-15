@@ -9,8 +9,9 @@ using Task.Parser.XLSX.Xls;
 namespace Task.Parser.XLSX.ViewModels;
 
 /// <summary>
-/// Главная модель представления: загрузка .xls в память и отображение таблицы.
-/// Входной файл только читается — все изменения происходят в памяти.
+/// Главная модель представления: загрузка .xls в память, изменение строк,
+/// фильтрация по столбцам. Входной файл только читается — все изменения
+/// происходят в памяти.
 /// </summary>
 public sealed class MainViewModel : ViewModelBase
 {
@@ -20,6 +21,11 @@ public sealed class MainViewModel : ViewModelBase
     /// <summary>Все строки таблицы (со всеми изменениями, сделанными в памяти).</summary>
     public ObservableCollection<TableRow> Rows { get; } = new();
 
+    /// <summary>
+    /// Представление для DataGrid (с фильтрацией). Пересоздаётся после загрузки
+    /// файла и после изменения набора строк, поэтому грид всегда получает свежий
+    /// источник данных и отображает содержимое.
+    /// </summary>
     private ICollectionView? _view;
 
     public ICollectionView? View
@@ -31,6 +37,9 @@ public sealed class MainViewModel : ViewModelBase
             OnPropertyChanged();
         }
     }
+
+    /// <summary>Фильтры по каждому столбцу (первая строка файла — заголовки).</summary>
+    public ObservableCollection<ColumnFilterViewModel> Filters { get; } = new();
 
     private IReadOnlyList<string> _headers = Array.Empty<string>();
 
@@ -71,10 +80,12 @@ public sealed class MainViewModel : ViewModelBase
     }
 
     public ICommand LoadFileCommand { get; }
+    public ICommand ClearFiltersCommand { get; }
 
     public MainViewModel()
     {
         LoadFileCommand = new RelayCommand(_ => LoadFile());
+        ClearFiltersCommand = new RelayCommand(_ => ClearFilters(), _ => Filters.Count > 0);
     }
 
     /// <summary>Показывает диалог выбора файла и загружает его в память.</summary>
@@ -114,8 +125,19 @@ public sealed class MainViewModel : ViewModelBase
                 Rows.Add(tableRow);
             }
 
+            Filters.Clear();
+            for (int c = 0; c < table.Headers.Count; c++)
+            {
+                var filter = new ColumnFilterViewModel(c, table.Headers[c]);
+                filter.Changed += (_, _) => RefreshView();
+                Filters.Add(filter);
+            }
+
             SourceFileName = path;
-            View = new ListCollectionView(Rows);
+
+            // Свежее представление по уже наполненной коллекции: DataGrid получит
+            // новый ItemsSource и отобразит все строки.
+            View = new ListCollectionView(Rows) { Filter = FilterRow };
             UpdateStatus();
         }
         catch (Exception ex)
@@ -124,12 +146,47 @@ public sealed class MainViewModel : ViewModelBase
         }
     }
 
+    private void ClearFilters()
+    {
+        foreach (var filter in Filters)
+            filter.Query = string.Empty;
+        RefreshView();
+    }
+
+    /// <summary>Гарантирует наличие представления (если оно ещё не создано).</summary>
+    private void EnsureView()
+    {
+        if (View is null && Headers.Count > 0)
+            View = new ListCollectionView(Rows) { Filter = FilterRow };
+    }
+
+    private void RefreshView()
+    {
+        EnsureView();
+        View?.Refresh();
+        UpdateStatus();
+    }
+
+    private bool FilterRow(object item)
+    {
+        if (item is not TableRow row)
+            return false;
+
+        foreach (var filter in Filters)
+        {
+            if (!filter.Matches(row[filter.ColumnIndex]))
+                return false;
+        }
+        return true;
+    }
+
     private void UpdateStatus()
     {
         int total = Rows.Count;
+        int shown = View?.Cast<object>().Count() ?? 0;
         string file = string.IsNullOrEmpty(SourceFileName)
             ? "файл не загружен"
             : System.IO.Path.GetFileName(SourceFileName);
-        StatusText = $"{file} | Лист «{SheetName}» | Строк: {total}";
+        StatusText = $"{file} | Лист «{SheetName}» | Строк: {total} | Показано: {shown}";
     }
 }
