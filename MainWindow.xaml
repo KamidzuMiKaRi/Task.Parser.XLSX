@@ -10,6 +10,10 @@
             <ToolBar>
                 <Button Content="Загрузить файл…" Command="{Binding LoadFileCommand}" Padding="8,3"/>
                 <Separator/>
+                <Button Content="Добавить строку" Command="{Binding AddRowCommand}" Padding="8,3"/>
+                <Button Content="Удалить строку" Click="OnDeleteClick" Padding="8,3"/>
+                <Separator/>
+                <Button Content="Сохранить отчёт (CSV)…" Command="{Binding SaveReportCommand}" Padding="8,3"/>
                 <Button Content="Сбросить фильтры" Command="{Binding ClearFiltersCommand}" Padding="8,3"/>
             </ToolBar>
         </ToolBarTray>

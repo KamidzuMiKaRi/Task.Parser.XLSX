@@ -4,14 +4,15 @@ using System.Windows.Data;
 using System.Windows.Input;
 using Microsoft.Win32;
 using Task.Parser.XLSX.Models;
+using Task.Parser.XLSX.Services;
 using Task.Parser.XLSX.Xls;
 
 namespace Task.Parser.XLSX.ViewModels;
 
 /// <summary>
 /// Главная модель представления: загрузка .xls в память, изменение строк,
-/// фильтрация по столбцам. Входной файл только читается — все изменения
-/// происходят в памяти.
+/// добавление, удаление, фильтрация по столбцам, сохранение отчёта (CSV).
+/// Входной файл только читается — все изменения происходят в памяти.
 /// </summary>
 public sealed class MainViewModel : ViewModelBase
 {
@@ -80,11 +81,17 @@ public sealed class MainViewModel : ViewModelBase
     }
 
     public ICommand LoadFileCommand { get; }
+    public ICommand AddRowCommand { get; }
+    public ICommand DeleteRowsCommand { get; }
+    public ICommand SaveReportCommand { get; }
     public ICommand ClearFiltersCommand { get; }
 
     public MainViewModel()
     {
         LoadFileCommand = new RelayCommand(_ => LoadFile());
+        AddRowCommand = new RelayCommand(_ => AddRow(), _ => Headers.Count > 0);
+        DeleteRowsCommand = new RelayCommand(DeleteRows, _ => Headers.Count > 0 && Rows.Count > 0);
+        SaveReportCommand = new RelayCommand(_ => SaveReport(), _ => Headers.Count > 0 && Rows.Count > 0);
         ClearFiltersCommand = new RelayCommand(_ => ClearFilters(), _ => Filters.Count > 0);
     }
 
@@ -139,6 +146,58 @@ public sealed class MainViewModel : ViewModelBase
             // новый ItemsSource и отобразит все строки.
             View = new ListCollectionView(Rows) { Filter = FilterRow };
             UpdateStatus();
+        }
+        catch (Exception ex)
+        {
+            ErrorOccurred?.Invoke(this, ex.Message);
+        }
+    }
+
+    /// <summary>Добавляет новую (пустую) строку в конец таблицы.</summary>
+    private void AddRow()
+    {
+        var row = new TableRow(Headers.Count);
+        Rows.Add(row);
+        EnsureView();
+        RefreshView();
+    }
+
+    /// <summary>Удаляет выбранные строки (параметр — коллекция выделения DataGrid).</summary>
+    private void DeleteRows(object? selected)
+    {
+        if (selected is not System.Collections.IList items || items.Count == 0)
+        {
+            StatusText = "Выберите строки для удаления.";
+            return;
+        }
+
+        foreach (var item in items.Cast<TableRow>().ToList())
+            Rows.Remove(item);
+        EnsureView();
+        RefreshView();
+    }
+
+    /// <summary>Сохраняет отчёт (CSV): заголовки и видимые строки со всеми изменениями.</summary>
+    private void SaveReport()
+    {
+        var dialog = new SaveFileDialog
+        {
+            Title = "Сохранить отчёт (CSV)",
+            Filter = "CSV (*.csv)|*.csv|Текстовый файл (*.txt)|*.txt",
+            FileName = "отчёт.csv",
+            DefaultExt = ".csv",
+            AddExtension = true,
+        };
+        if (dialog.ShowDialog() != true)
+            return;
+
+        try
+        {
+            // Выгружаются строки, прошедшие фильтры (View), с внесёнными изменениями.
+            var rowsToSave = View?.Cast<TableRow>() ?? Rows;
+            CsvReportWriter.Save(dialog.FileName, Headers, rowsToSave);
+            int count = rowsToSave.Count();
+            StatusText = $"Отчёт сохранён: {dialog.FileName} (строк: {count})";
         }
         catch (Exception ex)
         {

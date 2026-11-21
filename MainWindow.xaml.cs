@@ -22,6 +22,12 @@ public partial class MainWindow : Window
         _viewModel.PropertyChanged += OnViewModelPropertyChanged;
     }
 
+    /// <summary>Удаление выбранных строк (выделение читается из грида).</summary>
+    private void OnDeleteClick(object sender, RoutedEventArgs e)
+    {
+        _viewModel.DeleteRowsCommand.Execute(Grid.SelectedItems);
+    }
+
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         // При новой загрузке файла пересоздаём колонки под заголовки.
