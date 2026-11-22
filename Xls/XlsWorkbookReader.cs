@@ -7,10 +7,7 @@ namespace Task.Parser.XLSX.Xls;
 /// <summary>
 /// Парсер бинарного формата BIFF8 (Excel 97-2003) внутри потока Workbook
 /// OLE2-документа. Поддерживает SST (общие строки), ячейки LABELSST, LABEL,
-/// NUMBER, RK и BLANK.
-///
-/// TODO: разобрать записи MULRK и FORMULA (встречаются в файлах,
-/// сохранённых другими версиями Excel).
+/// NUMBER, RK, MULRK, BLANK, MULBLANK и FORMULA.
 ///
 /// Метод чтения листа:
 /// 1) первая строка листа определяет число столбцов и заголовки столбцов;
@@ -42,7 +39,11 @@ public static class XlsWorkbookReader
     private const ushort Label = 0x0204;
     private const ushort Number = 0x0203;
     private const ushort Rk = 0x027E;
+    private const ushort MulRk = 0x00BD;
     private const ushort Blank = 0x0201;
+    private const ushort MulBlank = 0x00BE;
+    private const ushort Formula = 0x0006;
+    private const ushort StringRecord = 0x0207;
 
     private readonly record struct Record(ushort Opcode, byte[] Data, int Offset);
 
@@ -122,8 +123,42 @@ public static class XlsWorkbookReader
                         SetCell(cells, row, col, FormatNumber(DecodeRk(BitConverter.ToInt32(rec.Data, 6))));
                         break;
                     }
+                case MulRk:
+                    {
+                        int row = BitConverter.ToUInt16(rec.Data, 0);
+                        int colFirst = BitConverter.ToUInt16(rec.Data, 2);
+                        int colLast = BitConverter.ToUInt16(rec.Data, rec.Data.Length - 2);
+                        for (int col = colFirst; col <= colLast; col++)
+                        {
+                            // На ячейку приходится ixfe(2) + rk(4).
+                            int idx = 4 + (col - colFirst) * 6 + 2;
+                            SetCell(cells, row, col, FormatNumber(DecodeRk(BitConverter.ToInt32(rec.Data, idx))));
+                        }
+                        break;
+                    }
                 case Blank:
                     break;
+                case Formula:
+                    {
+                        int row = BitConverter.ToUInt16(rec.Data, 0);
+                        int col = BitConverter.ToUInt16(rec.Data, 2);
+                        ulong raw = BitConverter.ToUInt64(rec.Data, 6);
+                        if ((raw >> 32) == 0xFFFFFFFF)
+                        {
+                            // Нечисловой результат: старший байт кодирует тип
+                            // (0 — строка, 1 — логическое, 2 — ошибка, 3 — пустая строка).
+                            byte type = rec.Data[13];
+                            if (type == 0 && i + 1 < records.Count && records[i + 1].Opcode == StringRecord)
+                                SetCell(cells, row, col, ReadUnicodeString(records[i + 1].Data, 0));
+                            else if (type == 1)
+                                SetCell(cells, row, col, rec.Data[12] != 0 ? "ИСТИНА" : "ЛОЖЬ");
+                        }
+                        else
+                        {
+                            SetCell(cells, row, col, FormatNumber(BitConverter.ToDouble(rec.Data, 6)));
+                        }
+                        break;
+                    }
                 case Eof:
                     goto sheetDone;
             }
